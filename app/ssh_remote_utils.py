@@ -3,7 +3,7 @@ import time
 import socket
 
 
-def get_ssh(host, passwd, logger, max_retries=15, timeout=10):
+def get_ssh(host, passwd, logger, max_retries=25, timeout=10):
     retries = 0
     while retries < max_retries:
         try:

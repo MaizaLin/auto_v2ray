@@ -26,13 +26,12 @@ ssh_map = {}
 thread = None
 
 data = {
-            "region": "ewr",
-            "plan": "vc2-1c-0.5gb",
-            "os_id": 477,
-            "hostname": "vultr.guest",
-            "label": "guest"
-        }
-
+    "region": "nrt",
+    "plan": "vhp-1c-1gb-amd",
+    "os_id": 477,
+    "hostname": "vultr.guest",
+    "label": "guest"
+}
 
 
 def remove_ansi_codes(text):
@@ -138,7 +137,7 @@ def infect_me(msg, logger = None):
     if not channel:
         logger.log('plz connect_ssh first!')
     else:
-        channel.send("pip install flask flask-cors flask-socketio paramiko json5 && git clone https://github.com/ghwswywps/auto_v2ray.git" + "\n")
+        channel.send("pip install flask flask-cors flask-socketio paramiko json5 && apt-get install git -y && git clone https://github.com/ghwswywps/auto_v2ray.git" + "\n")
     return 'ok'
 
  
@@ -192,6 +191,7 @@ def install_warp(msg, logger = None):
             cmd_with_log(ssh, logger, 'warp-cli set-mode proxy')
             cmd_with_log(ssh, logger, 'warp-cli connect')
             cmd_with_log(ssh, logger, 'python3 auto_v2ray/warps_utils.py && v2ray restart')
+            cmd_with_log(ssh, logger, 'v2ray restart')
             logger.log('warp install success!')
 
         Thread(target=install_warp_async).start()    
@@ -226,10 +226,10 @@ def create_instance(msg, logger = None):
     def create_instance_async(sid):
 
         # 创建一个新的 instance ， 先创建再生成避免ip不变
-
         response = requests.post(f"{BASE_URL}/instances", headers=headers, json=data)
         logger.log(print(response.json()))
         passwd = response.json()["instance"]['default_password']
+        newId = response.json()["instance"]['id']
 
         print("创建新容器中...")
         time.sleep(60)
@@ -239,17 +239,16 @@ def create_instance(msg, logger = None):
         response = requests.get(f"{BASE_URL}/instances", headers=headers)
         instances = response.json()["instances"]
         instances = sorted(instances, key=lambda x: x['date_created'], reverse=True)
-        tempCount = 0
+        
         # 需要等待到新的机器拿到 ip
 
         print("删除旧容器中...")
 
-        # 删到只剩最后一台
+        # 删到只剩新的 instance
         for instance in instances:
-            requests.delete(f"{BASE_URL}/instances/{instance['id']}", headers=headers)
-            tempCount += 1
-            if tempCount >= len(instances):
-                break
+            if instance['id'] != newId:
+                requests.delete(f"{BASE_URL}/instances/{instance['id']}", headers=headers)
+
         logger.log("初始化 & 删除旧容器中,此过程大约需要30秒...")
         time.sleep(30)
         logger.log('删除容器完成')

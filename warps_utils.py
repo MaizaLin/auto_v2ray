@@ -34,7 +34,8 @@ with open(config_file_path, 'r') as f:
             "outboundTag": "chat_gpt",
             "domain": [
                 "openai.com",
-                "bing.com"
+                "bing.com",
+                "baidu.com"
             ],
             "enabled": True
         }

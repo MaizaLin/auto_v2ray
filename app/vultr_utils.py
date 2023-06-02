@@ -2,12 +2,14 @@ import vultr
 import yaml
 
 data = {
-    "region": "ewr",
-    "plan": "vc2-1c-0.5gb",
+    "region": "nrt",
+    "plan": "vhp-1c-1gb-amd",
     "os_id": 477,
     "hostname": "vultr.guest",
     "label": "guest"
 }
+
+
 
 # Initialize the Vultr API client with the API key
 with open('config.yml') as f:
