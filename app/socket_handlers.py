@@ -15,8 +15,8 @@ with open('config.yml') as f:
 
 # 定义 Vultr API 的基本 URL 和 API 密钥
 BASE_URL = config['vultr']['base_url']
-API_KEY = config['vultr']['api_key']
 USER_ID = config['vultr']['user_id']
+USER_PWD = config['user_info']['passwd']
 
 headers = None
 ansi_escape = re.compile(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]')
@@ -26,12 +26,12 @@ ssh_map = {}
 thread = None
 
 data = {
-    "region": "nrt",
-    "plan": "vhp-1c-1gb-amd",
-    "os_id": 477,
-    "hostname": "vultr.guest",
-    "label": "guest"
-}
+            "region": "ewr",
+            "plan": "vhp-1c-1gb-amd",
+            "os_id": 477,
+            "hostname": "vultr.guest",
+            "label": "guest"
+        }
 
 
 def remove_ansi_codes(text):
@@ -115,7 +115,7 @@ def connect_ssh(msg, logger = None):
     if(len(instances) > 0):
         logger.log('find instance,try loging in')
         ip = instances[0]['main_ip']
-        ssh = get_ssh(ip, session['password'], logger, max_retries = 1)
+        ssh = get_ssh(ip, USER_PWD, logger, max_retries = 1)
         ssh_map[request.sid] = ssh
         channel_map[request.sid] =  ssh.invoke_shell()
         
@@ -163,16 +163,14 @@ def install_v2ray(msg, logger = None):
     
     logger.log('开始安装并配置v2ray服务端')
     channel.send('echo -e "1\n2\n10924\n\n\n\n\n" | bash <(curl -s -L https://git.io/v2ray.sh)\n')
-    if key == API_KEY:
-        channel.send('''sed -i 's/"id": "[^"]\{36\}"/"id": "''' + USER_ID + '''"/' /etc/v2ray/config.json\n''')
+    channel.send('''sed -i 's/"id": "[^"]\{36\}"/"id": "''' + USER_ID + '''"/' /etc/v2ray/config.json\n''')
     logger.log('配置完成，重启v2ray服务端')   
     channel.send('v2ray restart\n')
     logger.log('show info:')
     channel.send('v2ray url\n')
-    if key == API_KEY:
-        response = requests.get(f"{BASE_URL}/instances", headers=headers)
-        host = response.json()["instances"][0]['main_ip']
-        change_domain_record(host)
+    response = requests.get(f"{BASE_URL}/instances", headers=headers)
+    host = response.json()["instances"][0]['main_ip']
+    change_domain_record(host)
     logger.log('安装完成')
 
 @socketio.event
@@ -196,24 +194,11 @@ def install_warp(msg, logger = None):
 
         Thread(target=install_warp_async).start()    
         
-     
-# @socketio.event
-# @with_logging
-# def change_passwd(msg, logger = None):
-#     if ssh_map.get(request.sid):
-#         passwd = session['old_password']
-#         ssh = get_ssh(host, passwd, logger)
-        
-#         ssh = ssh_map.get(request.sid)
-#         cmd(ssh,'echo -e "' + password + '\n' + password + '" | passwd')        
-#     else:
-#         logger.log('there is no connection established!')
-
 
 @socketio.event
 @with_logging
 def create_instance(msg, logger = None):
-    password = session['password']
+    password = USER_PWD
     sid = request.sid
     channel = channel_map.get(sid)
     if channel:
