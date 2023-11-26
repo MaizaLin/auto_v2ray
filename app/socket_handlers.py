@@ -25,13 +25,18 @@ channel_map = {}
 ssh_map = {}
 thread = None
 
+#  Los Angeles	: lax
+#  New Jersey	: ewr
+	
 data = {
-            "region": "ewr",
+            "region": "lax", 
             "plan": "vhp-1c-1gb-amd",
             "os_id": 477,
             "hostname": "vultr.guest",
             "label": "guest"
         }
+
+
 
 
 def remove_ansi_codes(text):
@@ -44,6 +49,7 @@ def get_instance(msg, logger = None):
     response = requests.get(f"{BASE_URL}/instances", headers=headers)
     instances = response.json()["instances"]
     logger.log("result:" + json.dumps(instances))
+    # def get_instance_async():
     # Thread(target=get_instance_async).start()
     
 @socketio.event
@@ -106,6 +112,7 @@ def loop_run():
 @socketio.event 
 @with_logging
 def connect_ssh(msg, logger = None):
+    password = session['password']
     if ssh_map.get(request.sid):
         logger.log('there is already a connection established!')
         return
@@ -113,12 +120,30 @@ def connect_ssh(msg, logger = None):
     response = requests.get(f"{BASE_URL}/instances", headers=headers)
     instances = response.json()["instances"]
     if(len(instances) > 0):
-        logger.log('find instance,try loging in')
         ip = instances[0]['main_ip']
-        ssh = get_ssh(ip, USER_PWD, logger, max_retries = 1)
+        logger.log('find instance,try loging in' + ip + '  ' + password)
+        ssh = get_ssh(ip, password, logger, max_retries = 1)
         ssh_map[request.sid] = ssh
         channel_map[request.sid] =  ssh.invoke_shell()
-        
+
+
+@socketio.event 
+@with_logging
+def change_passwd(msg, logger = None):
+    password = USER_PWD
+    channel = channel_map.get(request.sid)
+    if not channel:
+        logger.log('plz connect_ssh first!')
+    else:
+        logger.log('登录成功，开始修改默认密码')
+        cmd(ssh,'echo -e "' + password + '\n' + password + '" | passwd')
+        time.sleep(10)
+        logger.log('修改成功,新密码：' + password)
+        ssh = get_ssh(host, password, logger, max_retries = 1)
+        ssh_map[sid] = ssh
+        channel_map[sid] =  ssh.invoke_shell()
+    return 'ok'
+
 @socketio.event
 @with_logging
 def delete_instance(msg, logger = None):
@@ -151,11 +176,53 @@ def openmldb_chatgpt(msg, logger = None):
         channel.send('openmldb-chatgpt\n')
     return 'ok'
 
+@socketio.event
+@with_logging
+def one_click(msg, logger = None):
+    ssh = ssh_map.get(request.sid)
+    channel = channel_map.get(request.sid)
+    if not channel:
+        logger.log('here is no connection yet!')
+        return
+
+    logger.log('开始安装并配置v2ray服务端')
+    channel.send('echo -e "1\n2\n10924\n\n\n\n\n" | bash <(curl -s -L https://git.io/v2ray.sh)\n')
+    channel.send('''sed -i 's/"id": "[^"]\{36\}"/"id": "''' + USER_ID + '''"/' /etc/v2ray/config.json\n''')
+    logger.log('配置完成，重启v2ray服务端')   
+    channel.send('v2ray restart\n')
+    logger.log('show info:')
+    channel.send('v2ray url\n')
+    response = requests.get(f"{BASE_URL}/instances", headers=headers)
+    host = response.json()["instances"][0]['main_ip']
+    change_domain_record(host)
+    logger.log('安装完成 v2ray')
+
+    logger.log('开始安装 infect_me')
+    time.sleep(5)
+    channel.send("pip install flask flask-cors flask-socketio paramiko json5 && apt-get install git -y && git clone https://github.com/ghwswywps/auto_v2ray.git" + "\n")
+    logger.log('安装完成 infect_me')
+
+    logger.log('开始安装 install_warp')
+    time.sleep(5)
+
+    cmd_with_log(ssh, logger, 'curl https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg')
+    cmd_with_log(ssh, logger, 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list')
+    cmd_with_log(ssh, logger, 'sudo apt update')
+    cmd_with_log(ssh, logger, 'sudo apt install cloudflare-warp -y')
+    cmd_with_log(ssh, logger, 'echo -e "y" |warp-cli register')
+    cmd_with_log(ssh, logger, 'warp-cli set-mode proxy')
+    cmd_with_log(ssh, logger, 'warp-cli connect')
+    cmd_with_log(ssh, logger, 'python3 auto_v2ray/warps_utils.py')
+
+    time.sleep(5)
+    cmd_with_log(ssh, logger, 'v2ray restart')
+    
+    logger.log('安装完成 install_warp')
+
 
 @socketio.event
 @with_logging
 def install_v2ray(msg, logger = None):
-    key = session['key']
     channel = channel_map.get(request.sid)
     if not channel:
         logger.log('here is no connection yet!')

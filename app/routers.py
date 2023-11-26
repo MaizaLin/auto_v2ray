@@ -16,6 +16,7 @@ def login_required(f):
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        session['password'] = request.form['password']
         key = request.form['key']
         session['key'] = key
         global headers 
@@ -28,6 +29,7 @@ def login():
 @bp.route('/logout')
 def logout():
     session.pop('key', None)
+    session.pop('password', None)
     return redirect(url_for('routers.login'))
 
 @bp.route('/')
